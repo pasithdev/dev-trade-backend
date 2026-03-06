@@ -1,0 +1,140 @@
+CREATE DATABASE IF NOT EXISTS devtrade;
+USE devtrade;
+
+CREATE TABLE IF NOT EXISTS trade (
+    signal_id INT AUTO_INCREMENT PRIMARY KEY,
+    symbol VARCHAR(50) NOT NULL,
+    pitch_fan VARCHAR(50),
+    macd_hist1 VARCHAR(50),
+    macd_hist2 VARCHAR(50),
+    macd1_sig_cross VARCHAR(50),
+    macd2_sig_cross VARCHAR(50),
+    fvg VARCHAR(50),
+    ob VARCHAR(50),
+    bb VARCHAR(50),
+    rb VARCHAR(50),
+    sl DECIMAL(10, 4),
+    close_status VARCHAR(50),
+    is_active VARCHAR(1) DEFAULT 'Y'
+);
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sp_insert_pitch_fan //
+CREATE PROCEDURE sp_insert_pitch_fan(
+    IN p_symbol VARCHAR(50),
+    IN p_action VARCHAR(50),
+    IN p_sl DECIMAL(10, 4)
+)
+BEGIN
+    INSERT INTO trade (symbol, pitch_fan, sl, is_active)
+    VALUES (p_symbol, p_action, p_sl, 'Y');
+END //
+
+DROP PROCEDURE IF EXISTS sp_update_macd_hist1 //
+CREATE PROCEDURE sp_update_macd_hist1(
+    IN p_action VARCHAR(50)
+)
+BEGIN
+    UPDATE trade
+    SET macd_hist1 = p_action
+    WHERE is_active = 'Y'
+    ORDER BY signal_id DESC
+    LIMIT 1;
+END //
+
+DROP PROCEDURE IF EXISTS sp_update_macd_hist2 //
+CREATE PROCEDURE sp_update_macd_hist2(
+    IN p_action VARCHAR(50)
+)
+BEGIN
+    UPDATE trade
+    SET macd_hist2 = p_action
+    WHERE is_active = 'Y'
+    ORDER BY signal_id DESC
+    LIMIT 1;
+END //
+
+DROP PROCEDURE IF EXISTS sp_update_macd1_sig_cross //
+CREATE PROCEDURE sp_update_macd1_sig_cross(
+    IN p_action VARCHAR(50)
+)
+BEGIN
+    UPDATE trade
+    SET macd1_sig_cross = p_action
+    WHERE is_active = 'Y'
+    ORDER BY signal_id DESC
+    LIMIT 1;
+END //
+
+DROP PROCEDURE IF EXISTS sp_update_macd2_sig_cross //
+CREATE PROCEDURE sp_update_macd2_sig_cross(
+    IN p_action VARCHAR(50)
+)
+BEGIN
+    UPDATE trade
+    SET macd2_sig_cross = p_action
+    WHERE is_active = 'Y'
+    ORDER BY signal_id DESC
+    LIMIT 1;
+END //
+
+DROP PROCEDURE IF EXISTS sp_update_fvg //
+CREATE PROCEDURE sp_update_fvg(
+    IN p_action VARCHAR(50)
+)
+BEGIN
+    UPDATE trade
+    SET fvg = p_action
+    WHERE is_active = 'Y'
+    ORDER BY signal_id DESC
+    LIMIT 1;
+END //
+
+DROP PROCEDURE IF EXISTS sp_update_ob //
+CREATE PROCEDURE sp_update_ob(
+    IN p_action VARCHAR(50)
+)
+BEGIN
+    UPDATE trade
+    SET ob = p_action
+    WHERE is_active = 'Y'
+    ORDER BY signal_id DESC
+    LIMIT 1;
+END //
+
+DROP PROCEDURE IF EXISTS sp_update_bb //
+CREATE PROCEDURE sp_update_bb(
+    IN p_action VARCHAR(50)
+)
+BEGIN
+    UPDATE trade
+    SET bb = p_action
+    WHERE is_active = 'Y'
+    ORDER BY signal_id DESC
+    LIMIT 1;
+END //
+
+DROP PROCEDURE IF EXISTS sp_update_rb //
+CREATE PROCEDURE sp_update_rb(
+    IN p_action VARCHAR(50)
+)
+BEGIN
+    UPDATE trade
+    SET rb = p_action
+    WHERE is_active = 'Y'
+    ORDER BY signal_id DESC
+    LIMIT 1;
+END //
+
+DROP PROCEDURE IF EXISTS sp_update_pitch_fan_chan_forms //
+CREATE PROCEDURE sp_update_pitch_fan_chan_forms()
+BEGIN
+    UPDATE trade
+    SET is_active = 'N'
+    WHERE is_active = 'Y'
+    ORDER BY signal_id DESC
+    LIMIT 1;
+END //
+
+DELIMITER ;
