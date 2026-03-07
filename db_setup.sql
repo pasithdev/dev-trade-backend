@@ -33,106 +33,116 @@ END //
 
 DROP PROCEDURE IF EXISTS sp_update_macd_hist1 //
 CREATE PROCEDURE sp_update_macd_hist1(
+    IN p_symbol VARCHAR(50),
     IN p_action VARCHAR(50)
 )
 BEGIN
     UPDATE trade
     SET macd_hist1 = p_action
-    WHERE is_active = 'Y'
+    WHERE is_active = 'Y' AND symbol = p_symbol
     ORDER BY signal_id DESC
     LIMIT 1;
 END //
 
 DROP PROCEDURE IF EXISTS sp_update_macd_hist2 //
 CREATE PROCEDURE sp_update_macd_hist2(
+    IN p_symbol VARCHAR(50),
     IN p_action VARCHAR(50)
 )
 BEGIN
     UPDATE trade
     SET macd_hist2 = p_action
-    WHERE is_active = 'Y'
+    WHERE is_active = 'Y' AND symbol = p_symbol
     ORDER BY signal_id DESC
     LIMIT 1;
 END //
 
 DROP PROCEDURE IF EXISTS sp_update_macd1_sig_cross //
 CREATE PROCEDURE sp_update_macd1_sig_cross(
+    IN p_symbol VARCHAR(50),
     IN p_action VARCHAR(50)
 )
 BEGIN
     UPDATE trade
     SET macd1_sig_cross = p_action
-    WHERE is_active = 'Y'
+    WHERE is_active = 'Y' AND symbol = p_symbol
     ORDER BY signal_id DESC
     LIMIT 1;
 END //
 
 DROP PROCEDURE IF EXISTS sp_update_macd2_sig_cross //
 CREATE PROCEDURE sp_update_macd2_sig_cross(
+    IN p_symbol VARCHAR(50),
     IN p_action VARCHAR(50)
 )
 BEGIN
     UPDATE trade
     SET macd2_sig_cross = p_action
-    WHERE is_active = 'Y'
+    WHERE is_active = 'Y' AND symbol = p_symbol
     ORDER BY signal_id DESC
     LIMIT 1;
 END //
 
 DROP PROCEDURE IF EXISTS sp_update_fvg //
 CREATE PROCEDURE sp_update_fvg(
+    IN p_symbol VARCHAR(50),
     IN p_action VARCHAR(50)
 )
 BEGIN
     UPDATE trade
     SET fvg = p_action
-    WHERE is_active = 'Y'
+    WHERE is_active = 'Y' AND symbol = p_symbol
     ORDER BY signal_id DESC
     LIMIT 1;
 END //
 
 DROP PROCEDURE IF EXISTS sp_update_ob //
 CREATE PROCEDURE sp_update_ob(
+    IN p_symbol VARCHAR(50),
     IN p_action VARCHAR(50)
 )
 BEGIN
     UPDATE trade
     SET ob = p_action
-    WHERE is_active = 'Y'
+    WHERE is_active = 'Y' AND symbol = p_symbol
     ORDER BY signal_id DESC
     LIMIT 1;
 END //
 
 DROP PROCEDURE IF EXISTS sp_update_bb //
 CREATE PROCEDURE sp_update_bb(
+    IN p_symbol VARCHAR(50),
     IN p_action VARCHAR(50)
 )
 BEGIN
     UPDATE trade
     SET bb = p_action
-    WHERE is_active = 'Y'
+    WHERE is_active = 'Y' AND symbol = p_symbol
     ORDER BY signal_id DESC
     LIMIT 1;
 END //
 
 DROP PROCEDURE IF EXISTS sp_update_rb //
 CREATE PROCEDURE sp_update_rb(
+    IN p_symbol VARCHAR(50),
     IN p_action VARCHAR(50)
 )
 BEGIN
     UPDATE trade
     SET rb = p_action
-    WHERE is_active = 'Y'
+    WHERE is_active = 'Y' AND symbol = p_symbol
     ORDER BY signal_id DESC
     LIMIT 1;
 END //
 
 DROP PROCEDURE IF EXISTS sp_update_pitch_fan_chan_forms //
-CREATE PROCEDURE sp_update_pitch_fan_chan_forms()
+CREATE PROCEDURE sp_update_pitch_fan_chan_forms(
+    IN p_symbol VARCHAR(50)
+)
 BEGIN
     UPDATE trade
     SET is_active = 'N'
-    WHERE is_active = 'Y'
+    WHERE is_active = 'Y' AND symbol = p_symbol
     ORDER BY signal_id DESC
     LIMIT 1;
 END //

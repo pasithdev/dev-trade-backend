@@ -30,89 +30,98 @@ public class TradeService {
         });
     }
 
-    public void updateMacdHist1(String action) {
+    public void updateMacdHist1(String symbol, String action) {
         jdbcTemplate.execute((Connection conn) -> {
-            try (CallableStatement cs = conn.prepareCall("{call sp_update_macd_hist1(?)}")) {
-                cs.setString(1, action);
+            try (CallableStatement cs = conn.prepareCall("{call sp_update_macd_hist1(?, ?)}")) {
+                cs.setString(1, symbol);
+                cs.setString(2, action);
                 cs.execute();
             }
             return null;
         });
     }
 
-    public void updateMacdHist2(String action) {
+    public void updateMacdHist2(String symbol, String action) {
         jdbcTemplate.execute((Connection conn) -> {
-            try (CallableStatement cs = conn.prepareCall("{call sp_update_macd_hist2(?)}")) {
-                cs.setString(1, action);
+            try (CallableStatement cs = conn.prepareCall("{call sp_update_macd_hist2(?, ?)}")) {
+                cs.setString(1, symbol);
+                cs.setString(2, action);
                 cs.execute();
             }
             return null;
         });
     }
 
-    public void updateMacd1SigCross(String action) {
+    public void updateMacd1SigCross(String symbol, String action) {
         jdbcTemplate.execute((Connection conn) -> {
-            try (CallableStatement cs = conn.prepareCall("{call sp_update_macd1_sig_cross(?)}")) {
-                cs.setString(1, action);
+            try (CallableStatement cs = conn.prepareCall("{call sp_update_macd1_sig_cross(?, ?)}")) {
+                cs.setString(1, symbol);
+                cs.setString(2, action);
                 cs.execute();
             }
             return null;
         });
     }
 
-    public void updateMacd2SigCross(String action) {
+    public void updateMacd2SigCross(String symbol, String action) {
         jdbcTemplate.execute((Connection conn) -> {
-            try (CallableStatement cs = conn.prepareCall("{call sp_update_macd2_sig_cross(?)}")) {
-                cs.setString(1, action);
+            try (CallableStatement cs = conn.prepareCall("{call sp_update_macd2_sig_cross(?, ?)}")) {
+                cs.setString(1, symbol);
+                cs.setString(2, action);
                 cs.execute();
             }
             return null;
         });
     }
 
-    public void updateFvg(String action) {
+    public void updateFvg(String symbol, String action) {
         jdbcTemplate.execute((Connection conn) -> {
-            try (CallableStatement cs = conn.prepareCall("{call sp_update_fvg(?)}")) {
-                cs.setString(1, action);
+            try (CallableStatement cs = conn.prepareCall("{call sp_update_fvg(?, ?)}")) {
+                cs.setString(1, symbol);
+                cs.setString(2, action);
                 cs.execute();
             }
             return null;
         });
     }
 
-    public void updateOb(String action) {
+    public void updateOb(String symbol, String action) {
         jdbcTemplate.execute((Connection conn) -> {
-            try (CallableStatement cs = conn.prepareCall("{call sp_update_ob(?)}")) {
-                cs.setString(1, action);
+            try (CallableStatement cs = conn.prepareCall("{call sp_update_ob(?, ?)}")) {
+                cs.setString(1, symbol);
+                cs.setString(2, action);
                 cs.execute();
             }
             return null;
         });
     }
 
-    public void updateBb(String action) {
+    public void updateBb(String symbol, String action) {
         jdbcTemplate.execute((Connection conn) -> {
-            try (CallableStatement cs = conn.prepareCall("{call sp_update_bb(?)}")) {
-                cs.setString(1, action);
+            try (CallableStatement cs = conn.prepareCall("{call sp_update_bb(?, ?)}")) {
+                cs.setString(1, symbol);
+                cs.setString(2, action);
                 cs.execute();
             }
             return null;
         });
     }
 
-    public void updateRb(String action) {
+    public void updateRb(String symbol, String action) {
         jdbcTemplate.execute((Connection conn) -> {
-            try (CallableStatement cs = conn.prepareCall("{call sp_update_rb(?)}")) {
-                cs.setString(1, action);
+            try (CallableStatement cs = conn.prepareCall("{call sp_update_rb(?, ?)}")) {
+                cs.setString(1, symbol);
+                cs.setString(2, action);
                 cs.execute();
             }
             return null;
         });
     }
 
-    public void updatePitchFanChanForms() {
+    public void updatePitchFanChanForms(String symbol) {
         jdbcTemplate.execute((Connection conn) -> {
-            try (CallableStatement cs = conn.prepareCall("{call sp_update_pitch_fan_chan_forms()}")) {
+            try (CallableStatement cs = conn.prepareCall("{call sp_update_pitch_fan_chan_forms(?)}")) {
+                cs.setString(1, symbol);
                 cs.execute();
             }
             return null;

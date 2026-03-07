@@ -27,55 +27,55 @@ public class TradeController {
 
     @PostMapping("/macd_hist1")
     public ResponseEntity<String> updateMacdHist1(@RequestBody MacdRequest request) {
-        tradeService.updateMacdHist1(request.getAction());
+        tradeService.updateMacdHist1(request.getSymbol(), request.getAction());
         return ResponseEntity.ok("MACD Hist 1 updated successfully");
     }
 
     @PostMapping("/macd_hist2")
     public ResponseEntity<String> updateMacdHist2(@RequestBody MacdRequest request) {
-        tradeService.updateMacdHist2(request.getAction());
+        tradeService.updateMacdHist2(request.getSymbol(), request.getAction());
         return ResponseEntity.ok("MACD Hist 2 updated successfully");
     }
 
     @PostMapping("/macd1_sig_cross")
     public ResponseEntity<String> updateMacd1SigCross(@RequestBody MacdRequest request) {
-        tradeService.updateMacd1SigCross(request.getAction());
+        tradeService.updateMacd1SigCross(request.getSymbol(), request.getAction());
         return ResponseEntity.ok("MACD1 Sig Cross updated successfully");
     }
 
     @PostMapping("/macd2_sig_cross")
     public ResponseEntity<String> updateMacd2SigCross(@RequestBody MacdRequest request) {
-        tradeService.updateMacd2SigCross(request.getAction());
+        tradeService.updateMacd2SigCross(request.getSymbol(), request.getAction());
         return ResponseEntity.ok("MACD2 Sig Cross updated successfully");
     }
 
     @PostMapping("/fvg")
     public ResponseEntity<String> updateFvg(@RequestBody IctMasterRequest request) {
-        tradeService.updateFvg(request.getAction());
+        tradeService.updateFvg(request.getSymbol(), request.getAction());
         return ResponseEntity.ok("FVG updated successfully");
     }
 
     @PostMapping("/ob")
     public ResponseEntity<String> updateOb(@RequestBody IctMasterRequest request) {
-        tradeService.updateOb(request.getAction());
+        tradeService.updateOb(request.getSymbol(), request.getAction());
         return ResponseEntity.ok("OB updated successfully");
     }
 
     @PostMapping("/bb")
     public ResponseEntity<String> updateBb(@RequestBody IctMasterRequest request) {
-        tradeService.updateBb(request.getAction());
+        tradeService.updateBb(request.getSymbol(), request.getAction());
         return ResponseEntity.ok("BB updated successfully");
     }
 
     @PostMapping("/rb")
     public ResponseEntity<String> updateRb(@RequestBody IctMasterRequest request) {
-        tradeService.updateRb(request.getAction());
+        tradeService.updateRb(request.getSymbol(), request.getAction());
         return ResponseEntity.ok("RB updated successfully");
     }
 
     @PostMapping("/pitchFanChanforms")
     public ResponseEntity<String> updatePitchFanChanForms(@RequestBody PitchFanChanformsRequest request) {
-        tradeService.updatePitchFanChanForms();
+        tradeService.updatePitchFanChanForms(request.getSymbol());
         return ResponseEntity.ok("PitchFan Chan Forms updated (deactivated) successfully");
     }
 }
