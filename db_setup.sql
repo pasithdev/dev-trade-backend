@@ -20,15 +20,18 @@ CREATE TABLE IF NOT EXISTS trade (
 
 DELIMITER //
 
-DROP PROCEDURE IF EXISTS sp_insert_pitch_fan //
-CREATE PROCEDURE sp_insert_pitch_fan(
+DROP PROCEDURE IF EXISTS sp_update_pitch_fan //
+CREATE PROCEDURE sp_update_pitch_fan(
     IN p_symbol VARCHAR(50),
     IN p_action VARCHAR(50),
     IN p_sl DECIMAL(10, 4)
 )
 BEGIN
-    INSERT INTO trade (symbol, pitch_fan, sl, is_active)
-    VALUES (p_symbol, p_action, p_sl, 'Y');
+    UPDATE trade
+    SET pitch_fan = p_action, sl = IFNULL(p_sl, sl)
+    WHERE is_active = 'Y' AND symbol = p_symbol
+    ORDER BY signal_id DESC
+    LIMIT 1;
 END //
 
 DROP PROCEDURE IF EXISTS sp_update_macd_hist1 //
@@ -137,7 +140,8 @@ END //
 
 DROP PROCEDURE IF EXISTS sp_update_pitch_fan_chan_forms //
 CREATE PROCEDURE sp_update_pitch_fan_chan_forms(
-    IN p_symbol VARCHAR(50)
+    IN p_symbol VARCHAR(50),
+    IN p_action VARCHAR(50)
 )
 BEGIN
     UPDATE trade
@@ -145,6 +149,9 @@ BEGIN
     WHERE is_active = 'Y' AND symbol = p_symbol
     ORDER BY signal_id DESC
     LIMIT 1;
+
+    INSERT INTO trade (symbol, pitch_fan, is_active)
+    VALUES (p_symbol, p_action, 'Y');
 END //
 
 DELIMITER ;

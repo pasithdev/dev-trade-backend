@@ -21,8 +21,8 @@ public class TradeController {
 
     @PostMapping("/pitchFan")
     public ResponseEntity<String> pitchFan(@RequestBody TradeRequest request) {
-        tradeService.insertPitchFan(request.getSymbol(), request.getAction(), request.getSl());
-        return ResponseEntity.ok("PitchFan inserted successfully");
+        tradeService.updatePitchFan(request.getSymbol(), request.getAction(), request.getSl());
+        return ResponseEntity.ok("PitchFan updated successfully");
     }
 
     @PostMapping("/macd_hist1")
@@ -75,7 +75,7 @@ public class TradeController {
 
     @PostMapping("/pitchFanChanforms")
     public ResponseEntity<String> updatePitchFanChanForms(@RequestBody PitchFanChanformsRequest request) {
-        tradeService.updatePitchFanChanForms(request.getSymbol());
-        return ResponseEntity.ok("PitchFan Chan Forms updated (deactivated) successfully");
+        tradeService.updatePitchFanChanForms(request.getSymbol(), request.getAction());
+        return ResponseEntity.ok("PitchFan Chan Forms updated (deactivated and inserted) successfully");
     }
 }

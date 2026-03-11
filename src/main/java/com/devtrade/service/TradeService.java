@@ -14,9 +14,9 @@ public class TradeService {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    public void insertPitchFan(String symbol, String action, Double sl) {
+    public void updatePitchFan(String symbol, String action, Double sl) {
         jdbcTemplate.execute((Connection conn) -> {
-            try (CallableStatement cs = conn.prepareCall("{call sp_insert_pitch_fan(?, ?, ?)}")) {
+            try (CallableStatement cs = conn.prepareCall("{call sp_update_pitch_fan(?, ?, ?)}")) {
                 cs.setString(1, symbol);
                 cs.setString(2, action);
                 if (sl != null) {
@@ -118,10 +118,11 @@ public class TradeService {
         });
     }
 
-    public void updatePitchFanChanForms(String symbol) {
+    public void updatePitchFanChanForms(String symbol, String action) {
         jdbcTemplate.execute((Connection conn) -> {
-            try (CallableStatement cs = conn.prepareCall("{call sp_update_pitch_fan_chan_forms(?)}")) {
+            try (CallableStatement cs = conn.prepareCall("{call sp_update_pitch_fan_chan_forms(?, ?)}")) {
                 cs.setString(1, symbol);
+                cs.setString(2, action);
                 cs.execute();
             }
             return null;
