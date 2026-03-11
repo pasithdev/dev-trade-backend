@@ -74,8 +74,8 @@ public class TradeController {
     }
 
     @PostMapping("/pitchFanChanforms")
-    public ResponseEntity<String> updatePitchFanChanForms(@RequestBody PitchFanChanformsRequest request) {
-        tradeService.updatePitchFanChanForms(request.getSymbol(), request.getAction());
+    public ResponseEntity<String> insertPitchFanChanForms(@RequestBody PitchFanChanformsRequest request) {
+        tradeService.insertPitchFanChanForms(request.getSymbol(), request.getAction());
         return ResponseEntity.ok("PitchFan Chan Forms updated (deactivated and inserted) successfully");
     }
 }

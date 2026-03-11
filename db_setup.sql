@@ -138,8 +138,8 @@ BEGIN
     LIMIT 1;
 END //
 
-DROP PROCEDURE IF EXISTS sp_update_pitch_fan_chan_forms //
-CREATE PROCEDURE sp_update_pitch_fan_chan_forms(
+DROP PROCEDURE IF EXISTS sp_insert_pitch_fan_chan_forms //
+CREATE PROCEDURE sp_insert_pitch_fan_chan_forms(
     IN p_symbol VARCHAR(50),
     IN p_action VARCHAR(50)
 )

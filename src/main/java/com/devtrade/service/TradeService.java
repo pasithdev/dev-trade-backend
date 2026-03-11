@@ -118,9 +118,9 @@ public class TradeService {
         });
     }
 
-    public void updatePitchFanChanForms(String symbol, String action) {
+    public void insertPitchFanChanForms(String symbol, String action) {
         jdbcTemplate.execute((Connection conn) -> {
-            try (CallableStatement cs = conn.prepareCall("{call sp_update_pitch_fan_chan_forms(?, ?)}")) {
+            try (CallableStatement cs = conn.prepareCall("{call sp_insert_pitch_fan_chan_forms(?, ?)}")) {
                 cs.setString(1, symbol);
                 cs.setString(2, action);
                 cs.execute();
