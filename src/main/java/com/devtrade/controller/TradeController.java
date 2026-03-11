@@ -78,4 +78,10 @@ public class TradeController {
         tradeService.insertPitchFanChanForms(request.getSymbol(), request.getAction());
         return ResponseEntity.ok("PitchFan Chan Forms updated (deactivated and inserted) successfully");
     }
+
+    @PostMapping("/fibo")
+    public ResponseEntity<String> updateFibo(@RequestBody com.devtrade.dto.FiboRequest request) {
+        tradeService.updateFibo(request.getSymbol(), request.getFibo0_5(), request.getFibo61_8(), request.getFiboPoc());
+        return ResponseEntity.ok("Fibo values updated successfully");
+    }
 }

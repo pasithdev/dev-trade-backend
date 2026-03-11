@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS trade (
     bb VARCHAR(50),
     rb VARCHAR(50),
     sl DECIMAL(10, 4),
+    fibo_0_5 DECIMAL (10,4),
+    fibo_61_8 DECIMAL (10,4),
+    fibo_poc DECIMAL (10,4),
     close_status VARCHAR(50),
     is_active VARCHAR(1) DEFAULT 'Y'
 );
@@ -152,6 +155,23 @@ BEGIN
 
     INSERT INTO trade (symbol, pitch_fan, is_active)
     VALUES (p_symbol, p_action, 'Y');
+END //
+
+DROP PROCEDURE IF EXISTS sp_update_fibo //
+CREATE PROCEDURE sp_update_fibo(
+    IN p_symbol VARCHAR(50),
+    IN p_fibo_0_5 DECIMAL(10, 4),
+    IN p_fibo_61_8 DECIMAL(10, 4),
+    IN p_fibo_poc DECIMAL(10, 4)
+)
+BEGIN
+    UPDATE trade
+    SET fibo_0_5 = p_fibo_0_5,
+        fibo_61_8 = p_fibo_61_8,
+        fibo_poc = p_fibo_poc
+    WHERE is_active = 'Y' AND symbol = p_symbol
+    ORDER BY signal_id DESC
+    LIMIT 1;
 END //
 
 DELIMITER ;

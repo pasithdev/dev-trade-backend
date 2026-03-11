@@ -128,4 +128,28 @@ public class TradeService {
             return null;
         });
     }
+
+    public void updateFibo(String symbol, Double fibo0_5, Double fibo61_8, Double fiboPoc) {
+        jdbcTemplate.execute((Connection conn) -> {
+            try (CallableStatement cs = conn.prepareCall("{call sp_update_fibo(?, ?, ?, ?)}")) {
+                cs.setString(1, symbol);
+
+                if (fibo0_5 != null)
+                    cs.setDouble(2, fibo0_5);
+                else
+                    cs.setNull(2, java.sql.Types.DECIMAL);
+                if (fibo61_8 != null)
+                    cs.setDouble(3, fibo61_8);
+                else
+                    cs.setNull(3, java.sql.Types.DECIMAL);
+                if (fiboPoc != null)
+                    cs.setDouble(4, fiboPoc);
+                else
+                    cs.setNull(4, java.sql.Types.DECIMAL);
+
+                cs.execute();
+            }
+            return null;
+        });
+    }
 }
