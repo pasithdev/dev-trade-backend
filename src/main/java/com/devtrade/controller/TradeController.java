@@ -84,4 +84,11 @@ public class TradeController {
         tradeService.updateFibo(request.getSymbol(), request.getFibo0_5(), request.getFibo61_8(), request.getFiboPoc());
         return ResponseEntity.ok("Fibo values updated successfully");
     }
+
+    @PostMapping("/fiboChangeforms")
+    public ResponseEntity<String> insertFiboChangeForms(@RequestBody com.devtrade.dto.FiboRequest request) {
+        tradeService.fibChangeForms(request.getSymbol(), request.getFibo0_5(), request.getFibo61_8(),
+                request.getFiboPoc());
+        return ResponseEntity.ok("Fibo Change Forms updated successfully");
+    }
 }
