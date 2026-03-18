@@ -200,4 +200,29 @@ BEGIN
     VALUES (p_symbol, p_fibo_0_5, p_fibo_61_8, p_fibo_poc, 'Y');
 END //
 
+DROP PROCEDURE IF EXISTS sp_get_latest_signal //
+CREATE PROCEDURE sp_get_latest_signal(
+    IN p_symbol VARCHAR(50)
+)
+BEGIN
+    SELECT signal_id, symbol, pitch_fan, macd_hist1, macd_hist2, 
+           macd1_sig_cross, macd2_sig_cross, fvg, ob, bb, rb, 
+           sl, fibo_0_5, fibo_61_8, fibo_poc, close_status, is_active
+    FROM trade
+    WHERE symbol = p_symbol AND is_active = 'Y'
+    ORDER BY signal_id DESC
+    LIMIT 1;
+END //
+
+DROP PROCEDURE IF EXISTS sp_update_signal_status //
+CREATE PROCEDURE sp_update_signal_status(
+    IN p_signal_id INT,
+    IN p_status VARCHAR(50)
+)
+BEGIN
+    UPDATE trade
+    SET close_status = p_status, is_active = 'N'
+    WHERE signal_id = p_signal_id;
+END //
+
 DELIMITER ;

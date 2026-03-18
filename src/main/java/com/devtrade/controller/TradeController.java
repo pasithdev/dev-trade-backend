@@ -91,4 +91,21 @@ public class TradeController {
                 request.getFiboPoc());
         return ResponseEntity.ok("Fibo Change Forms updated successfully");
     }
+
+    @org.springframework.web.bind.annotation.GetMapping("/latest-signal")
+    public ResponseEntity<com.devtrade.dto.SignalResponse> getLatestSignal(
+            @org.springframework.web.bind.annotation.RequestParam String symbol) {
+        com.devtrade.dto.SignalResponse signal = tradeService.getLatestSignal(symbol);
+        if (signal != null) {
+            return ResponseEntity.ok(signal);
+        } else {
+            return ResponseEntity.noContent().build();
+        }
+    }
+
+    @PostMapping("/update-status")
+    public ResponseEntity<String> updateSignalStatus(@RequestBody com.devtrade.dto.SignalStatusRequest request) {
+        tradeService.updateSignalStatus(request.getSignalId(), request.getStatus());
+        return ResponseEntity.ok("Signal status updated successfully");
+    }
 }

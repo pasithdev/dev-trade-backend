@@ -176,4 +176,49 @@ public class TradeService {
             return null;
         });
     }
+
+    public com.devtrade.dto.SignalResponse getLatestSignal(String symbol) {
+        return jdbcTemplate.execute((Connection conn) -> {
+            try (CallableStatement cs = conn.prepareCall("{call sp_get_latest_signal(?)}")) {
+                cs.setString(1, symbol);
+                try (java.sql.ResultSet rs = cs.executeQuery()) {
+                    if (rs.next()) {
+                        com.devtrade.dto.SignalResponse signal = new com.devtrade.dto.SignalResponse();
+                        signal.setSignalId(rs.getInt("signal_id"));
+                        signal.setSymbol(rs.getString("symbol"));
+                        signal.setPitchFan(rs.getString("pitch_fan"));
+                        signal.setMacdHist1(rs.getString("macd_hist1"));
+                        signal.setMacdHist2(rs.getString("macd_hist2"));
+                        signal.setMacd1SigCross(rs.getString("macd1_sig_cross"));
+                        signal.setMacd2SigCross(rs.getString("macd2_sig_cross"));
+                        signal.setFvg(rs.getString("fvg"));
+                        signal.setOb(rs.getString("ob"));
+                        signal.setBb(rs.getString("bb"));
+                        signal.setRb(rs.getString("rb"));
+                        signal.setSl(rs.getDouble("sl"));
+                        signal.setFibo0_5(rs.getDouble("fibo_0_5"));
+                        signal.setFibo61_8(rs.getDouble("fibo_61_8"));
+                        signal.setFiboPoc(rs.getDouble("fibo_poc"));
+                        signal.setCloseStatus(rs.getString("close_status"));
+                        signal.setIsActive(rs.getString("is_active"));
+                        return signal;
+                    }
+                }
+            } catch (SQLException e) {
+                throw new RuntimeException("Error fetching latest signal", e);
+            }
+            return null;
+        });
+    }
+
+    public void updateSignalStatus(int signalId, String status) {
+        jdbcTemplate.execute((Connection conn) -> {
+            try (CallableStatement cs = conn.prepareCall("{call sp_update_signal_status(?, ?)}")) {
+                cs.setInt(1, signalId);
+                cs.setString(2, status);
+                cs.execute();
+            }
+            return null;
+        });
+    }
 }
