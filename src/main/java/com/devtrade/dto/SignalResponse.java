@@ -12,6 +12,7 @@ public class SignalResponse {
     private String ob;
     private String bb;
     private String rb;
+    private String blueMode;
     private Double sl;
     private Double fibo0_5;
     private Double fibo61_8;
@@ -106,6 +107,14 @@ public class SignalResponse {
 
     public void setRb(String rb) {
         this.rb = rb;
+    }
+
+    public String getBlueMode() {
+        return blueMode;
+    }
+
+    public void setBlueMode(String blueMode) {
+        this.blueMode = blueMode;
     }
 
     public Double getSl() {

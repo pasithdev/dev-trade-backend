@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS trade (
     ob VARCHAR(50),
     bb VARCHAR(50),
     rb VARCHAR(50),
+    blue_mode VARCHAR(50),
     sl DECIMAL(10, 4),
     fibo_0_5 DECIMAL (10,4),
     fibo_61_8 DECIMAL (10,4),
@@ -149,6 +150,22 @@ BEGIN
     LIMIT 1;
 END //
 
+DROP PROCEDURE IF EXISTS sp_insert_blue_mode //
+CREATE PROCEDURE sp_insert_blue_mode(
+    IN p_symbol VARCHAR(50),
+    IN p_action VARCHAR(50)
+)
+BEGIN
+    UPDATE trade
+    SET is_active = 'N'
+    WHERE is_active = 'Y' AND symbol = p_symbol
+    ORDER BY signal_id DESC
+    LIMIT 1;
+
+    INSERT INTO trade (symbol, blue_mode, is_active)
+    VALUES (p_symbol, p_action, 'Y');
+END //
+
 DROP PROCEDURE IF EXISTS sp_insert_pitch_fan_chan_forms //
 CREATE PROCEDURE sp_insert_pitch_fan_chan_forms(
     IN p_symbol VARCHAR(50),
@@ -206,12 +223,18 @@ CREATE PROCEDURE sp_get_latest_signal(
 )
 BEGIN
     SELECT signal_id, symbol, pitch_fan, macd_hist1, macd_hist2, 
-           macd1_sig_cross, macd2_sig_cross, fvg, ob, bb, rb, 
+           macd1_sig_cross, macd2_sig_cross, fvg, ob, bb, rb, blue_mode,
            sl, fibo_0_5, fibo_61_8, fibo_poc, close_status, is_active
     FROM trade
-    WHERE symbol = p_symbol AND is_active = 'Y'
-    ORDER BY signal_id DESC
-    LIMIT 1;
+    WHERE signal_id = (
+        SELECT MAX(signal_id) 
+        FROM trade 
+        WHERE symbol = p_symbol 
+          AND is_active = 'Y'
+    )
+      AND symbol = p_symbol
+      AND is_active = 'Y'
+      AND (close_status IS NULL OR close_status != 'closed');
 END //
 
 DROP PROCEDURE IF EXISTS sp_update_signal_status //

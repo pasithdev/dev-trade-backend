@@ -2,6 +2,7 @@ E:\DevTradeBackend\src\main\java\com\devtrade\controller\TradeController.java
 E:\DevTradeBackend\src\main\java\com\devtrade\dto\IctMasterRequest.java
 E:\DevTradeBackend\src\main\java\com\devtrade\dto\SignalResponse.java
 E:\DevTradeBackend\src\main\java\com\devtrade\dto\PitchFanChanformsRequest.java
+E:\DevTradeBackend\src\main\java\com\devtrade\dto\BlueModeRequest.java
 E:\DevTradeBackend\src\main\java\com\devtrade\dto\MacdRequest.java
 E:\DevTradeBackend\src\main\java\com\devtrade\dto\SignalStatusRequest.java
 E:\DevTradeBackend\src\main\java\com\devtrade\service\TradeService.java

@@ -1,5 +1,6 @@
 package com.devtrade.controller;
 
+import com.devtrade.dto.BlueModeRequest;
 import com.devtrade.dto.IctMasterRequest;
 import com.devtrade.dto.MacdRequest;
 import com.devtrade.dto.PitchFanChanformsRequest;
@@ -71,6 +72,12 @@ public class TradeController {
     public ResponseEntity<String> updateRb(@RequestBody IctMasterRequest request) {
         tradeService.updateRb(request.getSymbol(), request.getAction());
         return ResponseEntity.ok("RB updated successfully");
+    }
+
+    @PostMapping("/blue_mode")
+    public ResponseEntity<String> insertBlueMode(@RequestBody BlueModeRequest request) {
+        tradeService.insertBlueMode(request.getSymbol(), request.getAction());
+        return ResponseEntity.ok("Blue Mode inserted successfully");
     }
 
     @PostMapping("/pitchFanChanforms")

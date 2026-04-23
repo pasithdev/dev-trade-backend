@@ -118,6 +118,17 @@ public class TradeService {
         });
     }
 
+    public void insertBlueMode(String symbol, String action) {
+        jdbcTemplate.execute((Connection conn) -> {
+            try (CallableStatement cs = conn.prepareCall("{call sp_insert_blue_mode(?, ?)}")) {
+                cs.setString(1, symbol);
+                cs.setString(2, action);
+                cs.execute();
+            }
+            return null;
+        });
+    }
+
     public void insertPitchFanChanForms(String symbol, String action) {
         jdbcTemplate.execute((Connection conn) -> {
             try (CallableStatement cs = conn.prepareCall("{call sp_insert_pitch_fan_chan_forms(?, ?)}")) {
@@ -195,6 +206,7 @@ public class TradeService {
                         signal.setOb(rs.getString("ob"));
                         signal.setBb(rs.getString("bb"));
                         signal.setRb(rs.getString("rb"));
+                        signal.setBlueMode(rs.getString("blue_mode"));
                         signal.setSl(rs.getDouble("sl"));
                         signal.setFibo0_5(rs.getDouble("fibo_0_5"));
                         signal.setFibo61_8(rs.getDouble("fibo_61_8"));
