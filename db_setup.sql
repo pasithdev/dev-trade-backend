@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS trade (
     fibo_61_8 DECIMAL (10,4),
     fibo_poc DECIMAL (10,4),
     close_status VARCHAR(50),
-    is_active VARCHAR(1) DEFAULT 'Y'
+    is_active VARCHAR(1) DEFAULT 'Y',
+    trade_action VARCHAR(50) DEFAULT 'enabled' -- enabled, disabled, manual
 );
 
 CREATE TABLE IF NOT EXISTS fibo (
@@ -224,7 +225,7 @@ CREATE PROCEDURE sp_get_latest_signal(
 BEGIN
     SELECT signal_id, symbol, pitch_fan, macd_hist1, macd_hist2, 
            macd1_sig_cross, macd2_sig_cross, fvg, ob, bb, rb, blue_mode,
-           sl, fibo_0_5, fibo_61_8, fibo_poc, close_status, is_active
+           sl, fibo_0_5, fibo_61_8, fibo_poc, close_status, is_active, trade_action
     FROM trade
     WHERE signal_id = (
         SELECT MAX(signal_id) 
