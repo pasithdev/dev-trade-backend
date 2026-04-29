@@ -1,0 +1,17 @@
+# Ignore virtual environment and cache files
+crypto-bot/venv/
+crypto-bot/__pycache__/
+crypto-bot/.pytest_cache/
+*.pyc
+
+# Ignore environment variables file (API Keys, Secrets, etc.)
+crypto-bot/.env
+.env
+
+# IntelliJ/Eclipse/VSCode files
+.idea/
+.vscode/
+*.iml
+
+# Maven target directory
+target/
