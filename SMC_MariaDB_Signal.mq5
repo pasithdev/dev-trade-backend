@@ -1,46 +1,42 @@
 //+------------------------------------------------------------------+
-//|                                          SMC_MariaDB_Signal.mq5  |
-//|                   Signal-based EA with MariaDB connectivity       |
-//|                   Reads signals from DB, opens/closes trades      |
+//|                                          SMC_API_Signal.mq5       |
+//|                   Signal-based EA with REST API connectivity       |
+//|                   Reads signals from API, opens/closes trades      |
 //+------------------------------------------------------------------+
 #property copyright "DevTrade"
 #property link      ""
-#property version   "1.00"
+#property version   "2.00"
 #property strict
 
 #include <Trade\Trade.mqh>
-#include "Include\MQLMySQL.mqh"
 
 //+------------------------------------------------------------------+
 //| Input parameters                                                  |
 //+------------------------------------------------------------------+
-input string   DBHost           = "localhost";       // MariaDB Host
-input uint     DBPort           = 3306;              // MariaDB Port
-input string   DBUser           = "root";            // Database User
-input string   DBPassword       = "pasith1234";      // Database Password
-input string   DBName           = "devtrade";        // Database Name
-input string   DBTable          = "signals";         // Signal Table Name
-input string   TradeSymbol      = "XAUUSD";          // Symbol to trade
-input double   FixedLot         = 0.01;              // Lot Size
-input double   MaxLot           = 1.0;               // Max Lot Size
-input int      MagicNumber      = 20260312;          // EA Magic Number
-input int      PollIntervalSec  = 5;                 // DB Poll Interval (seconds)
-input int      SLBufferPoints   = 50;                // Extra SL buffer (points)
-input int      SwingBars        = 20;                // Bars to look back for SL calculation
+input string   APIBaseUrl       = "http://127.0.0.1";   // API Base URL (e.g. http://192.168.1.100)
+input uint     APIPort          = 80;                  // API Port
+input int      APITimeout       = 5000;                // API Request Timeout (ms)
+input string   APISymbol        = "GOLD";              // Symbol name for API query (DB symbol)
+input double   FixedLot         = 0.01;                // Lot Size
+input double   MaxLot           = 1.0;                 // Max Lot Size
+input int      MagicNumber      = 20260312;            // EA Magic Number
+input int      PollIntervalSec  = 5;                   // API Poll Interval (seconds)
+input int      SLBufferPoints   = 50;                  // Extra SL buffer (points)
+input int      SwingBars        = 20;                  // Bars to look back for SL calculation
+input int      TargetProfitPoints = 1500;              // Min profit points to allow close (0=disabled)
 
 //+------------------------------------------------------------------+
 //| Global variables                                                  |
 //+------------------------------------------------------------------+
 CTrade         trade;
-bool           g_db_connected       = false;
-int            g_lastSignalId       = 0;       // Currently active/tracked signal_id
-bool           g_hasActiveOrder     = false;    // Is there an active order for this cycle?
+int            g_lastSignalId       = 0;
+bool           g_hasActiveOrder     = false;
 int            g_activeOrderType    = -1;       // 0=BUY, 1=SELL
-string         g_activeSignalAction = "";       // The action that opened the order
+string         g_activeSignalAction = "";
 int            g_pendingSetup       = -1;       // -1=None, 0=BUY Pending, 1=SELL Pending
-int            g_pendingSignalId    = 0;        // Signal ID that triggered the setup
+int            g_pendingSignalId    = 0;
+int            g_apiFailCount       = 0;
 
-// Signal data structure
 struct SignalData
   {
    int            signal_id;
@@ -54,36 +50,178 @@ struct SignalData
    string         ob;
    string         bb;
    string         rb;
+   string         blue_mode;
    double         sl;
    double         fibo_0_5;
    double         fibo_61_8;
    double         fibo_poc;
    string         close_status;
    string         is_active;
+   string         trade_action;
   };
 
 SignalData g_currentSignal;
+
+//+------------------------------------------------------------------+
+//| Build full API URL with port                                      |
+//+------------------------------------------------------------------+
+string BuildUrl(string path)
+  {
+   if(APIPort == 80)
+      return APIBaseUrl + path;
+   return APIBaseUrl + ":" + IntegerToString(APIPort) + path;
+  }
+
+//+------------------------------------------------------------------+
+//| Extract a JSON string value by key                                |
+//+------------------------------------------------------------------+
+string JsonGetString(const string &json, const string key)
+  {
+   string searchKey = "\"" + key + "\"";
+   int keyPos = StringFind(json, searchKey);
+   if(keyPos < 0)
+      return "";
+
+   int colonPos = StringFind(json, ":", keyPos + StringLen(searchKey));
+   if(colonPos < 0)
+      return "";
+
+   int startSearch = colonPos + 1;
+
+   // Skip whitespace
+   while(startSearch < StringLen(json) && (StringGetCharacter(json, startSearch) == ' ' || StringGetCharacter(json, startSearch) == '\t'))
+      startSearch++;
+
+   if(startSearch >= StringLen(json))
+      return "";
+
+   ushort ch = StringGetCharacter(json, startSearch);
+
+   // null value
+   if(ch == 'n')
+      return "";
+
+   // Quoted string
+   if(ch == '"')
+     {
+      int strStart = startSearch + 1;
+      int strEnd = StringFind(json, "\"", strStart);
+      if(strEnd < 0)
+         return "";
+      return StringSubstr(json, strStart, strEnd - strStart);
+     }
+
+   // Number or boolean (unquoted value) - read until comma, }, or whitespace
+   int valStart = startSearch;
+   int valEnd = valStart;
+   while(valEnd < StringLen(json))
+     {
+      ushort c = StringGetCharacter(json, valEnd);
+      if(c == ',' || c == '}' || c == ']' || c == ' ' || c == '\r' || c == '\n')
+         break;
+      valEnd++;
+     }
+   return StringSubstr(json, valStart, valEnd - valStart);
+  }
+
+//+------------------------------------------------------------------+
+//| Extract a JSON double value by key                                |
+//+------------------------------------------------------------------+
+double JsonGetDouble(const string &json, const string key)
+  {
+   string val = JsonGetString(json, key);
+   if(val == "" || val == "null")
+      return 0.0;
+   return StringToDouble(val);
+  }
+
+//+------------------------------------------------------------------+
+//| Extract a JSON int value by key                                   |
+//+------------------------------------------------------------------+
+int JsonGetInt(const string &json, const string key)
+  {
+   string val = JsonGetString(json, key);
+   if(val == "" || val == "null")
+      return 0;
+   return (int)StringToInteger(val);
+  }
+
+//+------------------------------------------------------------------+
+//| HTTP GET request                                                  |
+//+------------------------------------------------------------------+
+bool HttpGet(string url, string &responseBody, int &httpCode)
+  {
+   char postData[];
+   char result[];
+   string resultHeaders;
+
+   ResetLastError();
+   httpCode = WebRequest("GET", url, "Content-Type: application/json\r\n", APITimeout, postData, result, resultHeaders);
+
+   if(httpCode == -1)
+     {
+      int err = GetLastError();
+      Print("HTTP GET failed. Error: ", err,
+            ". Make sure URL is added in Tools > Options > Expert Advisors > Allow WebRequest for listed URL: ", APIBaseUrl);
+      return false;
+     }
+
+   responseBody = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
+   return true;
+  }
+
+//+------------------------------------------------------------------+
+//| HTTP POST request with JSON body                                  |
+//+------------------------------------------------------------------+
+bool HttpPost(string url, string jsonBody, string &responseBody, int &httpCode)
+  {
+   char postData[];
+   char result[];
+   string resultHeaders;
+
+   StringToCharArray(jsonBody, postData, 0, StringLen(jsonBody), CP_UTF8);
+
+   ResetLastError();
+   httpCode = WebRequest("POST", url, "Content-Type: application/json\r\n", APITimeout, postData, result, resultHeaders);
+
+   if(httpCode == -1)
+     {
+      int err = GetLastError();
+      Print("HTTP POST failed. Error: ", err,
+            ". Make sure URL is added in Tools > Options > Expert Advisors > Allow WebRequest for listed URL: ", APIBaseUrl);
+      return false;
+     }
+
+   responseBody = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
+   return true;
+  }
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                    |
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   // Set magic number
    trade.SetExpertMagicNumber(MagicNumber);
 
-   // Try initial DB connection
-   g_db_connected = MySqlConnect(DBHost, DBPort, DBUser, DBPassword, DBName);
-   if(!g_db_connected)
-     {
-      Print("⚠ Initial DB connection failed. Will retry on timer.");
-     }
-
-   // Start timer
    EventSetTimer(PollIntervalSec);
-   Print("🚀 SMC MariaDB Signal EA initialized");
-   Print("   Symbol: ", TradeSymbol, " | DB: ", DBHost, ":", DBPort, "/", DBName);
+
+   Print("SMC API Signal EA initialized (v2.0)");
+   Print("   Chart Symbol: ", _Symbol, " | API Symbol: ", APISymbol, " | API: ", BuildUrl(""));
    Print("   Lot: ", FixedLot, " | Magic: ", MagicNumber, " | Poll: ", PollIntervalSec, "s");
+   Print("   IMPORTANT: Add '", APIBaseUrl, "' to Tools > Options > Expert Advisors > Allow WebRequest");
+
+   // Test API connectivity
+   string responseBody;
+   int httpCode;
+   string testUrl = BuildUrl("/api/trade/latest-signal?symbol=" + APISymbol);
+   if(HttpGet(testUrl, responseBody, httpCode))
+     {
+      Print("API connectivity OK. HTTP ", httpCode);
+     }
+   else
+     {
+      Print("WARNING: API connectivity test failed. Will retry on timer.");
+     }
 
    return(INIT_SUCCEEDED);
   }
@@ -94,9 +232,7 @@ int OnInit()
 void OnDeinit(const int reason)
   {
    EventKillTimer();
-   MySqlDisconnect();
-   g_db_connected = false;
-   Print("🛑 SMC MariaDB Signal EA stopped. Reason: ", reason);
+   Print("SMC API Signal EA stopped. Reason: ", reason);
   }
 
 //+------------------------------------------------------------------+
@@ -139,12 +275,12 @@ bool ClosePositionsByType(int posType)
               {
                if(!trade.PositionClose(ticket))
                  {
-                  Print("❌ Failed to close position #", ticket, ": ", trade.ResultRetcodeDescription());
+                  Print("Failed to close position #", ticket, ": ", trade.ResultRetcodeDescription());
                   allClosed = false;
                  }
                else
                  {
-                  Print("✅ Closed position #", ticket);
+                  Print("Closed position #", ticket);
                  }
               }
            }
@@ -154,81 +290,172 @@ bool ClosePositionsByType(int posType)
   }
 
 //+------------------------------------------------------------------+
-//| Read signal from MariaDB                                          |
-//| SELECT * WHERE signal_id = MAX AND symbol = XAUUSD AND is_active=Y|
+//| Read signal from API: GET /api/trade/latest-signal?symbol=XXX     |
 //+------------------------------------------------------------------+
-bool ReadSignalFromDB(SignalData &signal)
+bool ReadSignalFromAPI(SignalData &signal)
   {
-   // Build query: get the row with max signal_id for XAUUSD where is_active='Y'
-   string query = "SELECT signal_id, symbol, pitch_fan, macd_hist1, macd_hist2, "
-                  "macd1_sig_cross, macd2_sig_cross, fvg, ob, bb, rb, "
-                  "sl, fibo_0_5, fibo_61_8, fibo_poc, close_status, is_active "
-                  "FROM " + DBTable + " "
-                  "WHERE symbol = '" + TradeSymbol + "' "
-                  "AND is_active = 'Y' "
-                  "ORDER BY signal_id DESC LIMIT 1";
+   string url = BuildUrl("/api/trade/latest-signal?symbol=" + APISymbol);
+   string responseBody;
+   int httpCode;
 
-   int cursor = MySqlCursorOpen(query);
-   if(cursor == 0)
+   if(!HttpGet(url, responseBody, httpCode))
      {
-      Print("❌ Failed to execute signal query");
+      g_apiFailCount++;
+      if(g_apiFailCount % 10 == 1)
+         Print("API call failed (count: ", g_apiFailCount, ")");
       return false;
      }
 
-   int rows = MySqlCursorRows(cursor);
-   if(rows <= 0)
+   // HTTP 204 = no active signal
+   if(httpCode == 204 || StringLen(responseBody) == 0)
+      return false;
+
+   if(httpCode != 200)
      {
-      MySqlCursorClose(cursor);
+      Print("API returned HTTP ", httpCode, ": ", responseBody);
       return false;
      }
 
-   // Fetch the row
-   int row = MySqlCursorFetchRow(cursor);
-   if(row == 0)
+   // Reset fail counter on success
+   g_apiFailCount = 0;
+
+   // Parse JSON response
+   signal.signal_id       = JsonGetInt(responseBody, "signalId");
+   signal.symbol          = JsonGetString(responseBody, "symbol");
+   signal.pitch_fan       = JsonGetString(responseBody, "pitchFan");
+   signal.macd_hist1      = JsonGetString(responseBody, "macdHist1");
+   signal.macd_hist2      = JsonGetString(responseBody, "macdHist2");
+   signal.macd1_sig_cross = JsonGetString(responseBody, "macd1SigCross");
+   signal.macd2_sig_cross = JsonGetString(responseBody, "macd2SigCross");
+   signal.fvg             = JsonGetString(responseBody, "fvg");
+   signal.ob              = JsonGetString(responseBody, "ob");
+   signal.bb              = JsonGetString(responseBody, "bb");
+   signal.rb              = JsonGetString(responseBody, "rb");
+   signal.blue_mode       = JsonGetString(responseBody, "blueMode");
+   signal.sl              = JsonGetDouble(responseBody, "sl");
+   signal.fibo_0_5        = JsonGetDouble(responseBody, "fibo0_5");
+   signal.fibo_61_8       = JsonGetDouble(responseBody, "fibo61_8");
+   signal.fibo_poc        = JsonGetDouble(responseBody, "fiboPoc");
+   signal.close_status    = JsonGetString(responseBody, "closeStatus");
+   signal.is_active       = JsonGetString(responseBody, "isActive");
+   signal.trade_action    = JsonGetString(responseBody, "tradeAction");
+
+   if(signal.signal_id == 0)
      {
-      MySqlCursorClose(cursor);
+      Print("WARNING: Parsed signal_id is 0. Raw response: ", StringSubstr(responseBody, 0, 200));
       return false;
      }
 
-   // Read all fields (0-indexed matching SELECT order)
-   signal.signal_id       = (int)StringToInteger(MySqlGetFieldValue(row, 0));
-   signal.symbol          = MySqlGetFieldValue(row, 1);
-   signal.pitch_fan       = MySqlGetFieldValue(row, 2);
-   signal.macd_hist1      = MySqlGetFieldValue(row, 3);
-   signal.macd_hist2      = MySqlGetFieldValue(row, 4);
-   signal.macd1_sig_cross = MySqlGetFieldValue(row, 5);
-   signal.macd2_sig_cross = MySqlGetFieldValue(row, 6);
-   signal.fvg             = MySqlGetFieldValue(row, 7);
-   signal.ob              = MySqlGetFieldValue(row, 8);
-   signal.bb              = MySqlGetFieldValue(row, 9);
-   signal.rb              = MySqlGetFieldValue(row, 10);
-   signal.sl              = StringToDouble(MySqlGetFieldValue(row, 11));
-   signal.fibo_0_5        = StringToDouble(MySqlGetFieldValue(row, 12));
-   signal.fibo_61_8       = StringToDouble(MySqlGetFieldValue(row, 13));
-   signal.fibo_poc        = StringToDouble(MySqlGetFieldValue(row, 14));
-   signal.close_status    = MySqlGetFieldValue(row, 15);
-   signal.is_active       = MySqlGetFieldValue(row, 16);
-
-   MySqlCursorClose(cursor);
    return true;
   }
 
 //+------------------------------------------------------------------+
-//| Update close_status in database                                   |
+//| Update close_status via API: POST /api/trade/update-status        |
 //+------------------------------------------------------------------+
-bool UpdateCloseStatus(int signalId)
+bool UpdateCloseStatus(int signalId, string status="closed")
   {
-   string query = "UPDATE " + DBTable + " SET close_status = 'closed', is_active = 'N' "
-                  "WHERE signal_id = " + IntegerToString(signalId);
+   string url = BuildUrl("/api/trade/update-status");
+   string jsonBody = "{\"signalId\":" + IntegerToString(signalId) + ",\"status\":\"" + status + "\"}";
+   string responseBody;
+   int httpCode;
 
-   if(!MySqlExecute(query))
+   if(!HttpPost(url, jsonBody, responseBody, httpCode))
      {
-      Print("❌ Failed to update close_status for signal_id=", signalId);
+      Print("Failed to update close_status for signal_id=", signalId);
       return false;
      }
 
-   Print("✅ Updated close_status='closed' for signal_id=", signalId);
+   if(httpCode != 200)
+     {
+      Print("Update status API returned HTTP ", httpCode, ": ", responseBody);
+      return false;
+     }
+
+   Print("Updated close_status='", status, "' for signal_id=", signalId, " via API");
    return true;
+  }
+
+//+------------------------------------------------------------------+
+//| Reset a single ICT signal via API (fvg/ob/bb/rb)                 |
+//| POST /api/trade/{endpoint} with action='' to clear it            |
+//+------------------------------------------------------------------+
+bool ResetSignalViaAPI(string endpoint, string indicator)
+  {
+   string url = BuildUrl("/api/trade/" + endpoint);
+   string jsonBody = "{\"symbol\":\"" + APISymbol + "\",\"indicator\":\"" + indicator + "\",\"action\":\"\"}";
+   string responseBody;
+   int httpCode;
+
+   if(!HttpPost(url, jsonBody, responseBody, httpCode))
+     {
+      Print("Failed to reset ", endpoint, " signal via API");
+      return false;
+     }
+
+   if(httpCode != 200)
+     {
+      Print("Reset ", endpoint, " API returned HTTP ", httpCode, ": ", responseBody);
+      return false;
+     }
+
+   Print("Reset ", endpoint, " signal (action='') for ", APISymbol);
+   return true;
+  }
+
+//+------------------------------------------------------------------+
+//| Reset all close-triggering signals so EA waits for new ones       |
+//+------------------------------------------------------------------+
+void ResetCloseSignals(const SignalData &signal, int posType)
+  {
+   if(posType == 0) // BUY position - reset bearish signals
+     {
+      if(signal.fvg == "FVG_BEAR") ResetSignalViaAPI("fvg", "fvg");
+      if(signal.ob == "OB_BEAR")   ResetSignalViaAPI("ob", "ob");
+      if(signal.bb == "BB_BEAR")   ResetSignalViaAPI("bb", "bb");
+      if(signal.rb == "RB_BEAR")   ResetSignalViaAPI("rb", "rb");
+     }
+   else // SELL position - reset bullish signals
+     {
+      if(signal.fvg == "FVG_BULL") ResetSignalViaAPI("fvg", "fvg");
+      if(signal.ob == "OB_BULL")   ResetSignalViaAPI("ob", "ob");
+      if(signal.bb == "BB_BULL")   ResetSignalViaAPI("bb", "bb");
+      if(signal.rb == "RB_BULL")   ResetSignalViaAPI("rb", "rb");
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Reset MACD entry signals via API after order is opened            |
+//+------------------------------------------------------------------+
+bool ResetMacdViaAPI(string endpoint)
+  {
+   string url = BuildUrl("/api/trade/" + endpoint);
+   string jsonBody = "{\"symbol\":\"" + APISymbol + "\",\"action\":\"\"}";
+   string responseBody;
+   int httpCode;
+
+   if(!HttpPost(url, jsonBody, responseBody, httpCode))
+     {
+      Print("Failed to reset ", endpoint, " via API");
+      return false;
+     }
+
+   if(httpCode != 200)
+     {
+      Print("Reset ", endpoint, " API returned HTTP ", httpCode, ": ", responseBody);
+      return false;
+     }
+
+   Print("Reset ", endpoint, " (action='') for ", APISymbol);
+   return true;
+  }
+
+//+------------------------------------------------------------------+
+//| Reset all entry signals after order is opened to prevent re-use   |
+//+------------------------------------------------------------------+
+void ResetEntrySignals()
+  {
+   ResetMacdViaAPI("macd_hist1");
+   ResetMacdViaAPI("macd_hist2");
   }
 
 //+------------------------------------------------------------------+
@@ -244,8 +471,7 @@ double GetSwingLow(int bars)
       int minIdx = ArrayMinimum(lowArr);
       if(minIdx >= 0) lowest = lowArr[minIdx];
      }
-   
-   // Fallback to current BID if calculation fails
+
    if(lowest == 999999) return SymbolInfoDouble(_Symbol, SYMBOL_BID);
    return lowest;
   }
@@ -263,10 +489,36 @@ double GetSwingHigh(int bars)
       int maxIdx = ArrayMaximum(highArr);
       if(maxIdx >= 0) highest = highArr[maxIdx];
      }
-   
-   // Fallback to current ASK if calculation fails
+
    if(highest == 0) return SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    return highest;
+  }
+
+//+------------------------------------------------------------------+
+//| Get profit in points for our active position                      |
+//| BUY:  (current_bid - open_price) / _Point                        |
+//| SELL: (open_price - current_ask) / _Point                        |
+//+------------------------------------------------------------------+
+double GetPositionProfitPoints(int posType)
+  {
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0)
+        {
+         if(PositionGetInteger(POSITION_MAGIC) == MagicNumber &&
+            PositionGetString(POSITION_SYMBOL) == _Symbol &&
+            (int)PositionGetInteger(POSITION_TYPE) == posType)
+           {
+            double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+            if(posType == 0) // BUY
+               return (SymbolInfoDouble(_Symbol, SYMBOL_BID) - openPrice) / _Point;
+            else             // SELL
+               return (openPrice - SymbolInfoDouble(_Symbol, SYMBOL_ASK)) / _Point;
+           }
+        }
+     }
+   return 0;
   }
 
 //+------------------------------------------------------------------+
@@ -274,10 +526,9 @@ double GetSwingHigh(int bars)
 //+------------------------------------------------------------------+
 bool ShouldCloseBuy(const SignalData &signal)
   {
-   // Close BUY when ANY bearish signal appears across the fields
    if(signal.fvg == "FVG_BEAR" || signal.ob == "OB_BEAR" || signal.bb == "BB_BEAR" || signal.rb == "RB_BEAR")
      {
-      Print("📉 Close BUY condition met -> fvg: ", signal.fvg, " | ob: ", signal.ob, " | bb: ", signal.bb, " | rb: ", signal.rb);
+      Print("Close BUY condition met -> fvg: ", signal.fvg, " | ob: ", signal.ob, " | bb: ", signal.bb, " | rb: ", signal.rb);
       return true;
      }
    return false;
@@ -288,10 +539,9 @@ bool ShouldCloseBuy(const SignalData &signal)
 //+------------------------------------------------------------------+
 bool ShouldCloseSell(const SignalData &signal)
   {
-   // Close SELL when ANY bullish signal appears across the fields
    if(signal.fvg == "FVG_BULL" || signal.ob == "OB_BULL" || signal.bb == "BB_BULL" || signal.rb == "RB_BULL")
      {
-      Print("📈 Close SELL condition met -> fvg: ", signal.fvg, " | ob: ", signal.ob, " | bb: ", signal.bb, " | rb: ", signal.rb);
+      Print("Close SELL condition met -> fvg: ", signal.fvg, " | ob: ", signal.ob, " | bb: ", signal.bb, " | rb: ", signal.rb);
       return true;
      }
    return false;
@@ -305,19 +555,16 @@ bool OpenBuyOrder(double slPrice)
    double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    if(ask == 0)
      {
-      Print("❌ Cannot get ASK price");
+      Print("Cannot get ASK price");
       return false;
      }
 
-   // Validate and adjust SL
    if(slPrice > 0)
      {
-      // Add buffer to SL
       slPrice = slPrice - SLBufferPoints * _Point;
-      // Ensure SL is below current price for BUY
       if(slPrice >= ask)
         {
-         Print("⚠ SL (", slPrice, ") >= ASK (", ask, "). Setting SL = 0 (no SL)");
+         Print("SL (", slPrice, ") >= ASK (", ask, "). Setting SL = 0 (no SL)");
          slPrice = 0;
         }
      }
@@ -325,19 +572,19 @@ bool OpenBuyOrder(double slPrice)
    double lot = MathMin(FixedLot, MaxLot);
    lot = NormalizeDouble(lot, 2);
 
-   string comment = "SMC_DB_" + IntegerToString(g_currentSignal.signal_id);
+   string comment = "SMC_API_" + IntegerToString(g_currentSignal.signal_id);
 
-   Print("🟢 Opening BUY: ", _Symbol, " Lot=", lot, " SL=", slPrice);
+   Print("Opening BUY: ", _Symbol, " Lot=", lot, " SL=", slPrice);
 
    if(trade.Buy(lot, _Symbol, 0, slPrice, 0, comment))
      {
-      Print("✅ BUY Order Placed! Ticket: ", trade.ResultOrder());
+      Print("BUY Order Placed! Ticket: ", trade.ResultOrder());
       Print("   Price: ", trade.ResultPrice(), " SL: ", slPrice);
       return true;
      }
    else
      {
-      Print("❌ BUY Failed! Error: ", trade.ResultRetcodeDescription());
+      Print("BUY Failed! Error: ", trade.ResultRetcodeDescription());
       return false;
      }
   }
@@ -350,19 +597,16 @@ bool OpenSellOrder(double slPrice)
    double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    if(bid == 0)
      {
-      Print("❌ Cannot get BID price");
+      Print("Cannot get BID price");
       return false;
      }
 
-   // Validate and adjust SL
    if(slPrice > 0)
      {
-      // Add buffer to SL
       slPrice = slPrice + SLBufferPoints * _Point;
-      // Ensure SL is above current price for SELL
       if(slPrice <= bid)
         {
-         Print("⚠ SL (", slPrice, ") <= BID (", bid, "). Setting SL = 0 (no SL)");
+         Print("SL (", slPrice, ") <= BID (", bid, "). Setting SL = 0 (no SL)");
          slPrice = 0;
         }
      }
@@ -370,108 +614,85 @@ bool OpenSellOrder(double slPrice)
    double lot = MathMin(FixedLot, MaxLot);
    lot = NormalizeDouble(lot, 2);
 
-   string comment = "SMC_DB_" + IntegerToString(g_currentSignal.signal_id);
+   string comment = "SMC_API_" + IntegerToString(g_currentSignal.signal_id);
 
-   Print("🔴 Opening SELL: ", _Symbol, " Lot=", lot, " SL=", slPrice);
+   Print("Opening SELL: ", _Symbol, " Lot=", lot, " SL=", slPrice);
 
    if(trade.Sell(lot, _Symbol, 0, slPrice, 0, comment))
      {
-      Print("✅ SELL Order Placed! Ticket: ", trade.ResultOrder());
+      Print("SELL Order Placed! Ticket: ", trade.ResultOrder());
       Print("   Price: ", trade.ResultPrice(), " SL: ", slPrice);
       return true;
      }
    else
      {
-      Print("❌ SELL Failed! Error: ", trade.ResultRetcodeDescription());
+      Print("SELL Failed! Error: ", trade.ResultRetcodeDescription());
       return false;
      }
   }
 
 //+------------------------------------------------------------------+
-//| Main Timer function - polls DB and manages trades                 |
+//| Main Timer function - polls API and manages trades                |
 //+------------------------------------------------------------------+
 void OnTimer()
   {
-   // Ensure we are on the correct symbol (allowing for broker suffixes like XAUUSD.m)
-   if(StringFind(_Symbol, TradeSymbol) < 0)
-     {
-      static bool warned = false;
-      if(!warned)
-        {
-         Print("⚠ EA is on ", _Symbol, " but configured for ", TradeSymbol, ". Please attach to correct chart.");
-         warned = true;
-        }
-      return;
-     }
-
-   //--- Step 1: Ensure DB connection
-   if(!g_db_connected)
-     {
-      g_db_connected = MySqlConnect(DBHost, DBPort, DBUser, DBPassword, DBName);
-      if(!g_db_connected)
-        {
-         Print("⚠ DB reconnection failed. Will retry...");
-         return;
-        }
-     }
-
-   //--- Step 2: Read latest signal from DB
+   //--- Step 1: Read latest signal from API (uses APISymbol, orders use chart _Symbol)
    SignalData signal;
-   if(!ReadSignalFromDB(signal))
-     {
-      // No active signal found - nothing to do
+   if(!ReadSignalFromAPI(signal))
       return;
-     }
 
-   // Store current signal globally
    g_currentSignal = signal;
 
-   //--- Step 3: Check if we have an active order to manage
+   //--- Step 2: Check if we have an active order to manage
    int openCount = CountOpenPositions();
 
    if(g_hasActiveOrder && openCount > 0)
      {
-      //--- We have an active order - check close conditions
       bool shouldClose = false;
 
-      if(g_activeOrderType == 0)  // BUY position
-        {
+      if(g_activeOrderType == 0)
          shouldClose = ShouldCloseBuy(signal);
-        }
-      else if(g_activeOrderType == 1)  // SELL position
-        {
+      else if(g_activeOrderType == 1)
          shouldClose = ShouldCloseSell(signal);
-        }
 
       if(shouldClose)
         {
-         Print("🔄 Closing position for signal_id=", g_lastSignalId);
+         double profitPts = GetPositionProfitPoints(g_activeOrderType);
+         string typeStr = (g_activeOrderType == 0) ? "BUY" : "SELL";
 
-         // Close the position
-         bool closed = ClosePositionsByType(g_activeOrderType);
-         if(closed)
+         if(TargetProfitPoints > 0 && profitPts < TargetProfitPoints)
            {
-            // Update close_status in database
-            UpdateCloseStatus(g_lastSignalId);
+            Print("Close signal for ", typeStr, " but profit ", NormalizeDouble(profitPts, 1),
+                  " pts < target ", TargetProfitPoints, " pts. Resetting signals, waiting for new close signal.");
+            ResetCloseSignals(signal, g_activeOrderType);
+           }
+         else
+           {
+            Print("Closing ", typeStr, " position for signal_id=", g_lastSignalId,
+                  " | Profit: ", NormalizeDouble(profitPts, 1), " pts");
 
-            // Reset cycle - ready for next signal
-            g_hasActiveOrder = false;
-            g_activeOrderType = -1;
-            g_lastSignalId = 0;
-            g_activeSignalAction = "";
+            bool closed = ClosePositionsByType(g_activeOrderType);
+            if(closed)
+              {
+               UpdateCloseStatus(g_lastSignalId);
 
-            Print("🔄 Cycle complete. Ready for next signal.");
+               g_hasActiveOrder = false;
+               g_activeOrderType = -1;
+               g_lastSignalId = 0;
+               g_activeSignalAction = "";
+
+               Print("Cycle complete. Ready for next signal.");
+              }
            }
         }
 
-      return;  // Don't open new orders while managing an existing one
+      return;
      }
 
    //--- If we thought we had an order but it's gone (e.g., SL hit)
    if(g_hasActiveOrder && openCount == 0)
      {
-      Print("⚠ Active order was closed externally (SL/TP hit). Resetting cycle.");
-      // Update close_status in database
+      Print("Active order was closed externally (SL/TP hit). Resetting cycle.");
       UpdateCloseStatus(g_lastSignalId);
       g_hasActiveOrder = false;
       g_activeOrderType = -1;
@@ -479,69 +700,90 @@ void OnTimer()
       g_activeSignalAction = "";
      }
 
-   //--- Step 4: No active order - check if we should open one
-   
-   //--- Priority 1: Check for PitchFan setup
-   if(signal.pitch_fan == "above_blue_1R")
+   //--- Step 3: No active order - check if we should open one
+
+   if(signal.trade_action != "enabled")
+     {
+      if(g_pendingSetup != -1)
+        {
+         Print("Trade action is '", signal.trade_action, "'. Cancelling pending setup.");
+         g_pendingSetup = -1;
+         g_pendingSignalId = 0;
+        }
+      return;
+     }
+
+   //--- Priority 1: Check for Blue Mode setup
+   if(signal.blue_mode == "liq_bear")
      {
       if(g_pendingSetup != 0)
         {
-         Print("🎯 Priority 1 Met: BUY Setup Initialized (PitchFan: above_blue_1R). Waiting for MACD buy...");
+         Print("Priority 1 Met: BUY Setup Initialized (Blue Mode: liq_bear). Waiting for MACD buy...");
          g_pendingSetup = 0;
          g_pendingSignalId = signal.signal_id;
         }
      }
-   else if(signal.pitch_fan == "below_blue_1S")
+   else if(signal.blue_mode == "liq_bull")
      {
       if(g_pendingSetup != 1)
         {
-         Print("🎯 Priority 1 Met: SELL Setup Initialized (PitchFan: below_blue_1S). Waiting for MACD sell...");
+         Print("Priority 1 Met: SELL Setup Initialized (Blue Mode: liq_bull). Waiting for MACD sell...");
          g_pendingSetup = 1;
          g_pendingSignalId = signal.signal_id;
         }
      }
+   else
+     {
+      if(g_pendingSetup != -1)
+        {
+         Print("Blue Mode changed to '", signal.blue_mode, "'. Cancelling pending ",
+               (g_pendingSetup == 0) ? "BUY" : "SELL", " setup.");
+         g_pendingSetup = -1;
+         g_pendingSignalId = 0;
+        }
+     }
 
-   // Optional: Log waiting status periodically if setup is pending
    if(g_pendingSetup != -1)
      {
       string setupStr = (g_pendingSetup == 0) ? "BUY" : "SELL";
-      Print("⏳ Waiting for Priority 2 (macd_hist1) to confirm ", setupStr, " setup...");
+      Print("Waiting for Priority 2 (macd_hist1/macd_hist2) to confirm ", setupStr, " setup...");
      }
 
-   //--- Priority 2: Check for MACD trigger
-   if(g_pendingSetup == 0 && signal.macd_hist1 == "buy")
+   //--- Priority 2: Check for MACD trigger (either macd_hist1 OR macd_hist2)
+   if(g_pendingSetup == 0 && (signal.macd_hist1 == "buy" || signal.macd_hist2 == "buy"))
      {
-      Print("🔥 Priority 2 Met: BUY Triggered (macd_hist1: buy)!");
-      // Calculate dynamic SL via Swing Low
+      Print("Priority 2 Met: BUY Triggered (macd_hist1: ", signal.macd_hist1, ", macd_hist2: ", signal.macd_hist2, ")!");
       double swingSL = GetSwingLow(SwingBars);
-      
+
       if(OpenBuyOrder(swingSL))
         {
          g_hasActiveOrder = true;
-         g_activeOrderType = 0;  // BUY
+         g_activeOrderType = 0;
          g_lastSignalId = signal.signal_id;
          g_activeSignalAction = "buy";
-         g_pendingSetup = -1;  // Reset setup state
+         g_pendingSetup = -1;
+         UpdateCloseStatus(signal.signal_id, "open");
+         ResetEntrySignals();
         }
      }
-   else if(g_pendingSetup == 1 && signal.macd_hist1 == "sell")
+   else if(g_pendingSetup == 1 && (signal.macd_hist1 == "sell" || signal.macd_hist2 == "sell"))
      {
-      Print("🔥 Priority 2 Met: SELL Triggered (macd_hist1: sell)!");
-      // Calculate dynamic SL via Swing High
+      Print("Priority 2 Met: SELL Triggered (macd_hist1: ", signal.macd_hist1, ", macd_hist2: ", signal.macd_hist2, ")!");
       double swingSL = GetSwingHigh(SwingBars);
-      
+
       if(OpenSellOrder(swingSL))
         {
          g_hasActiveOrder = true;
-         g_activeOrderType = 1;  // SELL
+         g_activeOrderType = 1;
          g_lastSignalId = signal.signal_id;
          g_activeSignalAction = "sell";
-         g_pendingSetup = -1;  // Reset setup state
+         g_pendingSetup = -1;
+         UpdateCloseStatus(signal.signal_id, "open");
+         ResetEntrySignals();
         }
      }
    else if(signal.signal_id != g_lastSignalId)
      {
-      // No entry trigger met for this signal ID yet
       g_lastSignalId = signal.signal_id;
      }
   }
@@ -551,7 +793,5 @@ void OnTimer()
 //+------------------------------------------------------------------+
 void OnTick()
   {
-   // All logic is handled in OnTimer()
-   // OnTick is kept for potential future use
   }
 //+------------------------------------------------------------------+

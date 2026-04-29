@@ -1,11 +1,13 @@
 com\devtrade\dto\TradeRequest.class
-com\devtrade\DevTradeBackendApplication.class
-com\devtrade\dto\IctMasterRequest.class
-com\devtrade\controller\TradeController.class
+com\devtrade\service\CryptoTradeService.class
 com\devtrade\dto\BlueModeRequest.class
 com\devtrade\dto\MacdRequest.class
 com\devtrade\dto\SignalResponse.class
 com\devtrade\dto\PitchFanChanformsRequest.class
 com\devtrade\service\TradeService.class
+com\devtrade\DevTradeBackendApplication.class
+com\devtrade\dto\IctMasterRequest.class
+com\devtrade\controller\TradeController.class
 com\devtrade\dto\FiboRequest.class
 com\devtrade\dto\SignalStatusRequest.class
+com\devtrade\controller\CryptoTradeController.class

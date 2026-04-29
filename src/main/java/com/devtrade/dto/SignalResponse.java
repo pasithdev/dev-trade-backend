@@ -19,6 +19,7 @@ public class SignalResponse {
     private Double fiboPoc;
     private String closeStatus;
     private String isActive;
+    private String tradeAction;
 
     // Getters and Setters
     public int getSignalId() {
@@ -163,5 +164,13 @@ public class SignalResponse {
 
     public void setIsActive(String isActive) {
         this.isActive = isActive;
+    }
+
+    public String getTradeAction() {
+        return tradeAction;
+    }
+
+    public void setTradeAction(String tradeAction) {
+        this.tradeAction = tradeAction;
     }
 }

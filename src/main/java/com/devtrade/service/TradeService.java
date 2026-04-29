@@ -213,6 +213,7 @@ public class TradeService {
                         signal.setFiboPoc(rs.getDouble("fibo_poc"));
                         signal.setCloseStatus(rs.getString("close_status"));
                         signal.setIsActive(rs.getString("is_active"));
+                        signal.setTradeAction(rs.getString("trade_action"));
                         return signal;
                     }
                 }

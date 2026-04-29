@@ -157,14 +157,25 @@ CREATE PROCEDURE sp_insert_blue_mode(
     IN p_action VARCHAR(50)
 )
 BEGIN
-    UPDATE trade
-    SET is_active = 'N'
+    DECLARE v_close_status VARCHAR(50);
+    DECLARE v_signal_id INT;
+
+    SELECT close_status, signal_id INTO v_close_status, v_signal_id
+    FROM trade
     WHERE is_active = 'Y' AND symbol = p_symbol
     ORDER BY signal_id DESC
     LIMIT 1;
 
-    INSERT INTO trade (symbol, blue_mode, is_active)
-    VALUES (p_symbol, p_action, 'Y');
+    IF v_signal_id IS NULL OR IFNULL(v_close_status, '') != 'open' THEN
+        IF v_signal_id IS NOT NULL THEN
+            UPDATE trade
+            SET is_active = 'N'
+            WHERE signal_id = v_signal_id;
+        END IF;
+
+        INSERT INTO trade (symbol, blue_mode, is_active)
+        VALUES (p_symbol, p_action, 'Y');
+    END IF;
 END //
 
 DROP PROCEDURE IF EXISTS sp_insert_pitch_fan_chan_forms //
@@ -245,7 +256,12 @@ CREATE PROCEDURE sp_update_signal_status(
 )
 BEGIN
     UPDATE trade
-    SET close_status = p_status, is_active = 'N'
+    SET close_status = p_status,
+        is_active = CASE
+            WHEN p_status = 'open'   THEN 'Y'
+            WHEN p_status = 'closed' THEN 'N'
+            ELSE is_active
+        END
     WHERE signal_id = p_signal_id;
 END //
 
